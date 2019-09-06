@@ -1,4 +1,4 @@
-import React, {Component} from 'react';
+import React, {useEffect, useState} from 'react';
 import PropTypes from 'prop-types';
 import AsyncStorage from '@react-native-community/async-storage';
 import {Keyboard, ActivityIndicator} from 'react-native';
@@ -18,40 +18,26 @@ import {
 } from './styles';
 import api from '../../services/api';
 
-export default class Main extends Component {
-  static navigationOptions = {
-    title: 'Main',
-  };
+function Main({navigation}) {
+  const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [newUser, setNewUser] = useState('');
 
-  static propTypes = {
-    navigation: PropTypes.shape({
-      navigate: PropTypes.func,
-    }).isRequired,
-  };
-
-  state = {
-    newUser: '',
-    users: [],
-    loading: false,
-  };
-
-  async componentDidMount() {
-    console.tron.log(this.props);
-    const users = await AsyncStorage.getItem('users');
-    if (users) {
-      this.setState({users: JSON.parse(users)});
+  useEffect(() => {
+    async function getUsers() {
+      const u = await AsyncStorage.getItem('users');
+      if (u) {
+        setUsers(JSON.parse(u));
+      }
     }
-  }
+    getUsers();
+  }, [navigation]);
+  useEffect(() => {
+    AsyncStorage.setItem('users', JSON.stringify(users));
+  }, [users]);
 
-  async componentDidUpdate(_, prevState) {
-    if (prevState.users !== this.state.users) {
-      AsyncStorage.setItem('users', JSON.stringify(this.state.users));
-    }
-  }
-
-  handleAddUser = async () => {
-    await this.setState({loading: true});
-    const {newUser, users} = this.state;
+  async function handleAddUser() {
+    setLoading(true);
     const response = await api.get(`/users/${newUser}`);
     const data = {
       name: response.data.name,
@@ -59,54 +45,62 @@ export default class Main extends Component {
       bio: response.data.bio,
       avatar: response.data.avatar_url,
     };
-    await this.setState({users: [...users, data], newUser: '', loading: false});
+    setUsers([...users, data]);
+    setNewUser('');
+    setLoading(false);
     Keyboard.dismiss();
-  };
-
-  handleNavigate = user => {
-    const {navigation} = this.props;
-    navigation.navigate('User', {user});
-  };
-
-  render() {
-    const {newUser, users, loading} = this.state;
-    return (
-      <Container>
-        <Form>
-          <Input
-            value={newUser}
-            onChangeText={text => this.setState({newUser: text})}
-            autoCorrect={false}
-            autoCaptalize="none"
-            placeholder="Adicionar usuário"
-            returnKeyType="send"
-            onSubmitEditing={this.handleAddUser}
-          />
-          <SubmitButton loading={loading} onPress={this.handleAddUser}>
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Icon name="add" size={20} color="#fff" />
-            )}
-          </SubmitButton>
-        </Form>
-        <List
-          data={users}
-          keyExtractor={user => user.login}
-          renderItem={({item}) => (
-            <User>
-              <Avatar source={{uri: item.avatar}} />
-              <Name>{item.name}</Name>
-              <Bio>{item.bio}</Bio>
-              <ProfileButton onPress={() => {}}>
-                <ProfileButtonText onPress={() => this.handleNavigate(item)}>
-                  Ver Profile
-                </ProfileButtonText>
-              </ProfileButton>
-            </User>
-          )}
-        />
-      </Container>
-    );
   }
+
+  function handleNavigate(user) {
+    navigation.navigate('User', {user});
+  }
+
+  return (
+    <Container>
+      <Form>
+        <Input
+          value={newUser}
+          onChangeText={text => setNewUser(text)}
+          autoCorrect={false}
+          autoCaptalize="none"
+          placeholder="Adicionar usuário"
+          returnKeyType="send"
+          onSubmitEditing={() => handleAddUser()}
+        />
+        <SubmitButton loading={loading} onPress={() => handleAddUser()}>
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Icon name="add" size={20} color="#fff" />
+          )}
+        </SubmitButton>
+      </Form>
+      <List
+        data={users}
+        keyExtractor={user => user.login}
+        renderItem={({item}) => (
+          <User>
+            <Avatar source={{uri: item.avatar}} />
+            <Name>{item.name}</Name>
+            <Bio>{item.bio}</Bio>
+            <ProfileButton onPress={() => handleNavigate(item)}>
+              <ProfileButtonText>Ver Profile</ProfileButtonText>
+            </ProfileButton>
+          </User>
+        )}
+      />
+    </Container>
+  );
 }
+
+Main.propTypes = {
+  navigation: PropTypes.shape({
+    navigate: PropTypes.func,
+  }).isRequired,
+};
+
+Main.navigationOptions = ({navigation}) => ({
+  title: 'Titulo',
+});
+
+export default Main;
